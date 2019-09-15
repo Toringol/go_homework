@@ -7,15 +7,17 @@ import (
 	"testing"
 )
 
-const testSimpleExpression = "1+2"
-const testSimpleExpressionCorrectResult = "3"
+const (
+	testSimpleExpression              = "1+2"
+	testSimpleExpressionCorrectResult = "3"
 
-const testComplicatedExpression = "((123+6/2)/2+1*2-(2*3))"
-const testComplicatedExpressionCorrectResult = "59"
+	testComplicatedExpression              = "((123+6/2)/2+1*2-(2*3))"
+	testComplicatedExpressionCorrectResult = "59"
 
-const testIncorrectInput = "(1++2)"
+	testIncorrectInput = "(1++2)"
 
-const testIncorrectBrackets = "(1+2))"
+	testIncorrectBrackets = "(1+2))"
+)
 
 func TestSimpleExpression(t *testing.T) {
 	in := bufio.NewReader(strings.NewReader(testSimpleExpression))

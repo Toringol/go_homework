@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -52,42 +53,138 @@ func writeIntoFile(lines []string, output string) error {
 	return nil
 }
 
-type byLetterCase []string
+func sliceFromString(lines []string) [][]string {
+	var result [][]string
 
-func (s byLetterCase) Len() int {
-	return len(s)
+	for _, line := range lines {
+		result = append(result, strings.Split(line, " "))
+	}
+
+	return result
 }
 
-func (s byLetterCase) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
+func reverseSlice(lines []string) {
+	for left, right := 0, len(lines)-1; left < right; left, right = left+1, right-1 {
+		lines[left], lines[right] = lines[right], lines[left]
+	}
 }
 
-func (s byLetterCase) Less(i, j int) bool {
-	return strings.ToLower(s[i]) < strings.ToLower(s[j])
+func uniq(lines []string, letterCase bool) []string {
+	keys := make(map[string]bool)
+	list := []string{}
+	var checkEntry string
+	for _, entry := range lines {
+		if letterCase {
+			checkEntry = strings.ToLower(entry)
+		} else {
+			checkEntry = entry
+		}
+		if _, value := keys[checkEntry]; !value {
+			keys[checkEntry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
+}
+
+func uniqColumn(lines []string, letterCase bool, column int) []string {
+	sliceSliceString := sliceFromString(lines)
+
+	keys := make(map[string]bool)
+	list := [][]string{}
+	var checkEntry string
+	for i, entry := range sliceSliceString {
+		if letterCase {
+			checkEntry = strings.ToLower(entry[column])
+		} else {
+			checkEntry = entry[column]
+		}
+		if _, value := keys[checkEntry]; !value {
+			keys[checkEntry] = true
+			list = append(list, sliceSliceString[i])
+		}
+	}
+
+	var result []string
+	for _, line := range list {
+		result = append(result, strings.Join(line[:], " "))
+	}
+
+	return result
+}
+
+func sortNumbers(lines []string) error {
+	values := []int{}
+	for _, line := range lines {
+		number, err := strconv.Atoi(line)
+		if err != nil {
+			return err
+		}
+		values = append(values, number)
+	}
+	sort.Ints(values)
+	for i, line := range values {
+		lines[i] = strconv.Itoa(line)
+	}
+	return nil
+}
+
+func sortStrings(lines []string, letterCase bool) {
+	if letterCase {
+		sort.SliceStable(lines, func(i, j int) bool {
+			return strings.ToLower(lines[i]) < strings.ToLower(lines[j])
+		})
+	} else {
+		sort.Strings(lines)
+	}
+}
+
+func columnSort(lines []string, letterCase bool, column int) {
+	sliceSliceString := sliceFromString(lines)
+	if letterCase {
+		sort.SliceStable(sliceSliceString, func(i, j int) bool {
+			return strings.ToLower(sliceSliceString[i][column]) <
+				strings.ToLower(sliceSliceString[j][column])
+		})
+	} else {
+		sort.SliceStable(sliceSliceString, func(i, j int) bool {
+			return sliceSliceString[i][column] < sliceSliceString[j][column]
+		})
+	}
+	for index, line := range sliceSliceString {
+		lines[index] = strings.Join(line[:], " ")
+	}
 }
 
 func sortUtil(input string, output io.Writer, letterCase bool, firstEntry bool,
-	reverse bool, directOutput string, sortNumbers bool, columnSort int) error {
+	reverse bool, directOutput string, sortNum bool, column int) error {
 	lines, err := readFile(input)
 
 	if err != nil {
 		return err
 	}
 
-	if reverse {
-		if letterCase {
-			sort.Sort(sort.Reverse(byLetterCase(lines)))
-		} else {
-			sort.Sort(sort.Reverse(sort.StringSlice(lines)))
+	if column != 0 {
+		columnSort(lines, letterCase, column)
+	} else if sortNum {
+		err := sortNumbers(lines)
+		if err != nil {
+			return err
 		}
 	} else {
-		if letterCase {
-			sort.Slice(lines, func(i, j int) bool {
-				return strings.ToLower(lines[i]) < strings.ToLower(lines[j])
-			})
+		sortStrings(lines, letterCase)
+	}
+
+	if firstEntry {
+		if column != 0 {
+			lines = uniqColumn(lines, letterCase, column)
 		} else {
-			sort.Strings(lines)
+			lines = uniq(lines, letterCase)
 		}
+	}
+
+	if reverse {
+		reverseSlice(lines)
 	}
 
 	if directOutput == "" {
@@ -97,8 +194,8 @@ func sortUtil(input string, output io.Writer, letterCase bool, firstEntry bool,
 		if err != nil {
 			return err
 		}
-
 	}
+
 	return nil
 }
 
@@ -112,6 +209,10 @@ func main() {
 	columnSortPtr := flag.Int("k", 0, "columnSort")
 
 	flag.Parse()
+
+	if len(flag.Args()) > 1 {
+		panic("Too many argument")
+	}
 
 	err := sortUtil(flag.Args()[0], os.Stdout, *letterCasePtr, *firstEntryPtr,
 		*reversePtr, *directOutputPtr, *sortNumbersPtr, *columnSortPtr)
