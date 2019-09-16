@@ -4,103 +4,28 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/emirpasic/gods/stacks/arraystack"
 	"io"
 	"os"
 	"strconv"
 )
-
-type OperationsStack struct {
-	Slice []string
-	Pos   int
-}
-
-type OperandsStack struct {
-	Slice []int
-	Pos   int
-}
-
-func NewOperationsStack() *OperationsStack {
-	return &OperationsStack{
-		Slice: []string{},
-		Pos:   0,
-	}
-}
-
-func NewOperandsStack() *OperandsStack {
-	return &OperandsStack{
-		Slice: []int{},
-		Pos:   0,
-	}
-}
-
-func (operations *OperationsStack) Push(str string) {
-	if operations.Pos < len(operations.Slice) {
-		operations.Slice[operations.Pos] = str
-	} else {
-		operations.Slice = append(operations.Slice, str)
-	}
-	operations.Pos++
-}
-
-func (operands *OperandsStack) Push(number int) {
-	if operands.Pos < len(operands.Slice) {
-		operands.Slice[operands.Pos] = number
-	} else {
-		operands.Slice = append(operands.Slice, number)
-	}
-	operands.Pos++
-}
-
-func (operations *OperationsStack) Pop() (string, error) {
-	ret, err := operations.Top()
-	if err != nil {
-		return "", errors.New("Can't pop; stack is empty!")
-	}
-	operations.Pos--
-	return ret, nil
-}
-
-func (operands *OperandsStack) Pop() (int, error) {
-	ret, err := operands.Top()
-	if err != nil {
-		return 0, errors.New("Can't pop; stack is empty!")
-	}
-	operands.Pos--
-	return ret, nil
-}
-
-func (operations *OperationsStack) Top() (string, error) {
-	if operations.Pos < 1 {
-		return "", errors.New("No elements in stack")
-	}
-	return operations.Slice[operations.Pos-1], nil
-}
-
-func (operands *OperandsStack) Top() (int, error) {
-	if operands.Pos < 1 {
-		return 0, errors.New("No elements in stack")
-	}
-	return operands.Slice[operands.Pos-1], nil
-}
 
 func checkInputData(expression string) error {
 	bracketsCounter := 0
 	operationFlag := 0
 
 	for i := 0; i < len(expression); i++ {
-		if (expression[i] < '0' || expression[i] > '9') && expression[i] != '+' &&
-			expression[i] != '-' && expression[i] != '/' && expression[i] != '*' &&
+		if (expression[i] < '0' || expression[i] > '9') &&
+			!isOperator(string(expression[i])) &&
 			expression[i] != '(' && expression[i] != ')' {
 			return errors.New("Incorrect symbols")
 		}
 
-		if (expression[i] == '+' || expression[i] == '-' ||
-			expression[i] == '/' || expression[i] == '*') && operationFlag == 1 {
+		if isOperator(string(expression[i])) && operationFlag == 1 {
 			return errors.New("Incorrect sequence of operations")
 		}
 
-		if expression[i] == '+' || expression[i] == '-' ||
-			expression[i] == '/' || expression[i] == '*' {
+		if isOperator(string(expression[i])) {
 			operationFlag = 1
 		} else {
 			operationFlag = 0
@@ -150,41 +75,49 @@ func splitOnOp(expression string) []string {
 	return operandAndOperations
 }
 
-func makeOperation(operandsStack *OperandsStack, operationsStack *OperationsStack) {
-	var (
-		result   int
-		operand1 int
-		operand2 int
-	)
+func isOperator(operation string) bool {
+	if operation == "+" || operation == "-" ||
+		operation == "*" || operation == "/" {
+		return true
+	}
+	return false
+}
 
-	topOperation, _ := operationsStack.Top()
+func makeOp(operand1 int, operand2 int, operation string) int {
+	if operation == "+" {
+		return operand1 + operand2
+	}
+	if operation == "-" {
+		return operand2 - operand1
+	}
+	if operation == "*" {
+		return operand1 * operand2
+	}
+	if operation == "/" {
+		return operand2 / operand1
+	}
+	return 0
+}
 
-	if topOperation == "+" {
-		operand1, _ = operandsStack.Pop()
-		operand2, _ = operandsStack.Pop()
-		result = operand1 + operand2
-		operandsStack.Push(result)
-	}
-	if topOperation == "-" {
-		operand1, _ = operandsStack.Pop()
-		operand2, _ = operandsStack.Pop()
-		result = operand2 - operand1
-		operandsStack.Push(result)
-	}
-	if topOperation == "*" {
-		operand1, _ = operandsStack.Pop()
-		operand2, _ = operandsStack.Pop()
-		result = operand1 * operand2
-		operandsStack.Push(result)
-	}
-	if topOperation == "/" {
-		operand1, _ = operandsStack.Pop()
-		operand2, _ = operandsStack.Pop()
-		result = operand2 / operand1
-		operandsStack.Push(result)
+func makeOperation(operandsStack *arraystack.Stack, operationsStack *arraystack.Stack) error {
+
+	topOperation, okPopOperation := operationsStack.Peek()
+	operand1, okPopOp1 := operandsStack.Pop()
+	operand2, okPopOp2 := operandsStack.Pop()
+
+	if !okPopOp1 || !okPopOp2 || !okPopOperation {
+		return errors.New("Error in Pop")
 	}
 
-	operationsStack.Pop()
+	operandsStack.Push(makeOp(operand1.(int), operand2.(int), topOperation.(string)))
+
+	_, ok := operationsStack.Pop()
+
+	if !ok {
+		return errors.New("Error in Pop")
+	}
+
+	return nil
 }
 
 func calc(input io.Reader, output io.Writer) error {
@@ -201,60 +134,38 @@ func calc(input io.Reader, output io.Writer) error {
 	}
 
 	var operandAndOperations []string
-	operandsStack := NewOperandsStack()
-	operationsStack := NewOperationsStack()
+	operandsStack := arraystack.New()
+	operationsStack := arraystack.New()
 
 	operandAndOperations = splitOnOp(expression)
 
 	for _, value := range operandAndOperations {
 		switch value {
-		case "+":
-			for operationsStack.Pos != 0 {
-				topOperation, _ := operationsStack.Top()
-				if topOperation == "+" || topOperation == "-" ||
-					topOperation == "*" || topOperation == "/" {
+		case "+", "-":
+			for operationsStack.Size() != 0 {
+				topOperation, _ := operationsStack.Peek()
+				if isOperator(topOperation.(string)) {
 					makeOperation(operandsStack, operationsStack)
 				} else {
 					break
 				}
 			}
-			operationsStack.Push("+")
-		case "-":
-			for operationsStack.Pos != 0 {
-				topOperation, _ := operationsStack.Top()
-				if topOperation == "+" || topOperation == "-" ||
-					topOperation == "*" || topOperation == "/" {
-					makeOperation(operandsStack, operationsStack)
-				} else {
-					break
-				}
-			}
-			operationsStack.Push("-")
-		case "/":
-			for operationsStack.Pos != 0 {
-				topOperation, _ := operationsStack.Top()
+			operationsStack.Push(value)
+		case "/", "*":
+			for operationsStack.Size() != 0 {
+				topOperation, _ := operationsStack.Peek()
 				if topOperation == "*" || topOperation == "/" {
 					makeOperation(operandsStack, operationsStack)
 				} else {
 					break
 				}
 			}
-			operationsStack.Push("/")
-		case "*":
-			for operationsStack.Pos != 0 {
-				topOperation, _ := operationsStack.Top()
-				if topOperation == "*" || topOperation == "/" {
-					makeOperation(operandsStack, operationsStack)
-				} else {
-					break
-				}
-			}
-			operationsStack.Push("*")
+			operationsStack.Push(value)
 		case "(":
 			operationsStack.Push("(")
 		case ")":
 			for {
-				topOperation, _ := operationsStack.Top()
+				topOperation, _ := operationsStack.Peek()
 				if topOperation == "(" {
 					break
 				} else {
@@ -263,17 +174,24 @@ func calc(input io.Reader, output io.Writer) error {
 			}
 			operationsStack.Pop()
 		default:
-			operand, _ := strconv.Atoi(value)
+			operand, err := strconv.Atoi(value)
+			if err != nil {
+				return err
+			}
 			operandsStack.Push(operand)
 		}
 
 	}
 
-	for operationsStack.Pos != 0 {
+	for operationsStack.Size() != 0 {
 		makeOperation(operandsStack, operationsStack)
 	}
 
-	result, _ := operandsStack.Pop()
+	result, ok := operandsStack.Pop()
+
+	if !ok {
+		return errors.New("No operands in stack")
+	}
 
 	fmt.Fprintf(output, "%d", result)
 

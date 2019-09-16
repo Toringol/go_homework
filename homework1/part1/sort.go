@@ -2,55 +2,57 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
-	"fmt"
 	"io"
+	"log"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 )
 
-func readFile(input string) (lines []string, err error) {
-	file, err := os.Open(input)
+var (
+	letterCasePtr   = flag.Bool("f", false, "letterCase")
+	firstEntryPtr   = flag.Bool("u", false, "firstEntry")
+	reversePtr      = flag.Bool("r", false, "reverse")
+	directOutputPtr = flag.String("o", "", "directOutput")
+	sortNumbersPtr  = flag.Bool("n", false, "sortNumbers")
+	columnSortPtr   = flag.Int("k", 0, "columnSort")
+)
 
-	if err != nil {
-		return nil, err
-	}
+type Opts struct {
+	Reverse      bool
+	Column       int
+	LetterCase   bool
+	FirstEntry   bool
+	DirectOutput string
+	SortNumbers  bool
+}
 
-	defer file.Close()
+func readInput(input io.Reader) (lines []string, err error) {
 
-	in := bufio.NewScanner(file)
+	in := bufio.NewScanner(input)
 
 	for in.Scan() {
 		line := in.Text()
 		lines = append(lines, line)
 	}
 
+	if err := in.Err(); err != nil {
+		emptyLine := []string{}
+		return emptyLine, err
+	}
+
 	return lines, nil
 }
 
-func writeLines(lines []string, output io.Writer) {
-	for _, line := range lines {
-		fmt.Fprintln(output, line)
+func writeResult(output io.Writer, res []string) {
+	const delim = "\n"
+	for _, line := range res {
+		output.Write([]byte(line))
+		output.Write([]byte(delim))
 	}
-}
-
-func writeIntoFile(lines []string, output string) error {
-	file, err := os.Create(output)
-
-	if err != nil {
-		return err
-	}
-
-	defer file.Close()
-
-	const delim = '\n'
-	for _, text := range lines {
-		file.WriteString(text + string(delim))
-
-	}
-	return nil
 }
 
 func sliceFromString(lines []string) [][]string {
@@ -139,8 +141,13 @@ func sortStrings(lines []string, letterCase bool) {
 	}
 }
 
-func columnSort(lines []string, letterCase bool, column int) {
+func columnSort(lines []string, letterCase bool, column int) error {
 	sliceSliceString := sliceFromString(lines)
+	for _, value := range sliceSliceString {
+		if column > len(value)-1 {
+			return errors.New("Out of range")
+		}
+	}
 	if letterCase {
 		sort.SliceStable(sliceSliceString, func(i, j int) bool {
 			return strings.ToLower(sliceSliceString[i][column]) <
@@ -154,70 +161,104 @@ func columnSort(lines []string, letterCase bool, column int) {
 	for index, line := range sliceSliceString {
 		lines[index] = strings.Join(line[:], " ")
 	}
+	return nil
 }
 
-func sortUtil(input string, output io.Writer, letterCase bool, firstEntry bool,
-	reverse bool, directOutput string, sortNum bool, column int) error {
-	lines, err := readFile(input)
+func sortUtil(lines []string, opts Opts) ([]string, error) {
 
-	if err != nil {
-		return err
-	}
-
-	if column != 0 {
-		columnSort(lines, letterCase, column)
-	} else if sortNum {
+	if opts.Column != 0 {
+		err := columnSort(lines, opts.LetterCase, opts.Column)
+		if err != nil {
+			emptyLine := []string{}
+			return emptyLine, err
+		}
+	} else if opts.SortNumbers {
 		err := sortNumbers(lines)
 		if err != nil {
-			return err
+			emptyLine := []string{}
+			return emptyLine, err
 		}
 	} else {
-		sortStrings(lines, letterCase)
+		sortStrings(lines, opts.LetterCase)
 	}
 
-	if firstEntry {
-		if column != 0 {
-			lines = uniqColumn(lines, letterCase, column)
+	if opts.FirstEntry {
+		if opts.Column != 0 {
+			lines = uniqColumn(lines, opts.LetterCase, opts.Column)
 		} else {
-			lines = uniq(lines, letterCase)
+			lines = uniq(lines, opts.LetterCase)
 		}
 	}
 
-	if reverse {
+	if opts.Reverse {
 		reverseSlice(lines)
 	}
 
-	if directOutput == "" {
-		writeLines(lines, output)
-	} else {
-		err := writeIntoFile(lines, directOutput)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return lines, nil
 }
 
 func main() {
 
-	letterCasePtr := flag.Bool("f", false, "letterCase")
-	firstEntryPtr := flag.Bool("u", false, "firstEntry")
-	reversePtr := flag.Bool("r", false, "reverse")
-	directOutputPtr := flag.String("o", "", "directOutput")
-	sortNumbersPtr := flag.Bool("n", false, "sortNumbers")
-	columnSortPtr := flag.Int("k", 0, "columnSort")
-
 	flag.Parse()
 
-	if len(flag.Args()) > 1 {
-		panic("Too many argument")
+	opts := Opts{
+		Reverse:      *reversePtr,
+		Column:       *columnSortPtr,
+		LetterCase:   *letterCasePtr,
+		FirstEntry:   *firstEntryPtr,
+		DirectOutput: *directOutputPtr,
+		SortNumbers:  *sortNumbersPtr,
 	}
 
-	err := sortUtil(flag.Args()[0], os.Stdout, *letterCasePtr, *firstEntryPtr,
-		*reversePtr, *directOutputPtr, *sortNumbersPtr, *columnSortPtr)
+	out := os.Stdout
+
+	if len(flag.Args()) > 1 {
+		log.Fatal("Too many argument")
+	}
+
+	var lines []string
+
+	if len(flag.Args()) == 1 {
+		in, err := os.Open(flag.Args()[0])
+
+		if err != nil {
+			log.Fatal("Can`t open file")
+		}
+
+		defer in.Close()
+
+		lines, err = readInput(in)
+
+		if err != nil {
+			log.Fatal("Mistake in read")
+		}
+
+	} else {
+		var err error
+		lines, err = readInput(os.Stdin)
+
+		if err != nil {
+			log.Fatal("Mistake in read")
+		}
+	}
+
+	sortedLines, err := sortUtil(lines, opts)
+
+	if opts.DirectOutput == "" {
+		writeResult(out, sortedLines)
+	} else {
+		file, err := os.Create(opts.DirectOutput)
+
+		if err != nil {
+			log.Fatal("Can`t create or open file")
+		}
+
+		defer file.Close()
+
+		writeResult(file, lines)
+	}
 
 	if err != nil {
-		panic(err.Error())
+		log.Fatal("Error")
 	}
 }

@@ -3,19 +3,23 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"github.com/stretchr/testify/require"
 	"os"
+	"strings"
 	"testing"
 )
 
-const testFile = `data.txt`
-const testFileColumn = `column.txt`
-const testFileNumber = `numbers.txt`
-const testFileOutput = `output.txt`
-const testFileForAllFlags = `test.txt`
-const testBadFile = `data.txt data.txt`
-const testNoExistFile = `IamNotExist.txt`
-
-const testWithoutFlagsCorrectOutput = `Apple
+func TestWithoutFlags(t *testing.T) {
+	const testWithoutFlags = `Napkin
+Apple
+January
+BOOK
+January
+Hauptbahnhof
+Book
+Go
+`
+	const testWithoutFlagsCorrectOutput = `Apple
 BOOK
 Book
 Go
@@ -25,7 +29,38 @@ January
 Napkin
 `
 
-const testReverseFlagCorrectOutput = `Napkin
+	in := bufio.NewReader(strings.NewReader(testWithoutFlags))
+	out := new(bytes.Buffer)
+
+	lines, err := readInput(in)
+	if err != nil {
+		t.Errorf("TestWithoutFlags for OK Failed - error")
+	}
+
+	opts := Opts{}
+
+	sortedLines, errSort := sortUtil(lines, opts)
+
+	if errSort != nil {
+		t.Errorf("TestWithoutFlags for OK Failed - error")
+	}
+
+	writeResult(out, sortedLines)
+
+	require.Equal(t, out.String(), testWithoutFlagsCorrectOutput, "TestWithoutFlags for OK Failed - results not match")
+}
+
+func TestFlagReverse(t *testing.T) {
+	const testReverse = `Napkin
+Apple
+January
+BOOK
+January
+Hauptbahnhof
+Book
+Go
+`
+	const testReverseFlagCorrectOutput = `Napkin
 January
 January
 Hauptbahnhof
@@ -35,7 +70,40 @@ BOOK
 Apple
 `
 
-const testFirstEntryCorrectOutput = `Apple
+	in := bufio.NewReader(strings.NewReader(testReverse))
+	out := new(bytes.Buffer)
+
+	lines, err := readInput(in)
+	if err != nil {
+		t.Errorf("TestFlagReverse for OK Failed - error")
+	}
+
+	opts := Opts{
+		Reverse: true,
+	}
+
+	sortedLines, errSort := sortUtil(lines, opts)
+
+	if errSort != nil {
+		t.Errorf("TestFlagReverse for OK Failed - error")
+	}
+
+	writeResult(out, sortedLines)
+
+	require.Equal(t, out.String(), testReverseFlagCorrectOutput, "TestFlagReverse for OK Failed - results not match")
+}
+
+func TestFlagFirstEntry(t *testing.T) {
+	const testFirstEntry = `Napkin
+Apple
+January
+BOOK
+January
+Hauptbahnhof
+Book
+Go
+`
+	const testFirstEntryCorrectOutput = `Apple
 BOOK
 Book
 Go
@@ -44,7 +112,41 @@ January
 Napkin
 `
 
-const testFirstEntryAndLetterCaseCorrectOutput = `Apple
+	in := bufio.NewReader(strings.NewReader(testFirstEntry))
+	out := new(bytes.Buffer)
+
+	lines, err := readInput(in)
+	if err != nil {
+		t.Errorf("TestFlagFirstEntry for OK Failed - error")
+	}
+
+	opts := Opts{
+		FirstEntry: true,
+	}
+
+	sortedLines, errSort := sortUtil(lines, opts)
+
+	if errSort != nil {
+		t.Errorf("TestFlagFirstEntry for OK Failed - error")
+	}
+
+	writeResult(out, sortedLines)
+
+	require.Equal(t, out.String(), testFirstEntryCorrectOutput, "TestFlagFirstEntry for OK Failed - results not match")
+
+}
+
+func TestFlagFirstEntryAndLetterCase(t *testing.T) {
+	const testFirstEntryAndLetterCase = `Napkin
+Apple
+January
+BOOK
+January
+Hauptbahnhof
+Book
+Go
+`
+	const testFirstEntryAndLetterCaseCorrectOutput = `Apple
 BOOK
 Go
 Hauptbahnhof
@@ -52,7 +154,42 @@ January
 Napkin
 `
 
-const testColumnSortCorrectOutput = `Napkin Apple
+	in := bufio.NewReader(strings.NewReader(testFirstEntryAndLetterCase))
+	out := new(bytes.Buffer)
+
+	lines, err := readInput(in)
+	if err != nil {
+		t.Errorf("TestFlagFirstEntryAndLetterCase for OK Failed - error")
+	}
+
+	opts := Opts{
+		FirstEntry: true,
+		LetterCase: true,
+	}
+
+	sortedLines, errSort := sortUtil(lines, opts)
+
+	if errSort != nil {
+		t.Errorf("TestFlagFirstEntryAndLetterCase for OK Failed - error")
+	}
+
+	writeResult(out, sortedLines)
+
+	require.Equal(t, out.String(), testFirstEntryAndLetterCaseCorrectOutput, "TestFlagFirstEntryAndLetterCase for OK Failed - results not match")
+
+}
+
+func TestColumnSort(t *testing.T) {
+	const testColumnSort = `Napkin Apple
+Apple January
+January BOOK
+BOOK January
+January Hauptbahnhof
+Hauptbahnhof Book
+Book Go
+Go Book
+`
+	const testColumnSortCorrectOutput = `Napkin Apple
 January BOOK
 Hauptbahnhof Book
 Go Book
@@ -62,108 +199,113 @@ Apple January
 BOOK January
 `
 
-const testNumbersCorrectOutput = `1
+	in := bufio.NewReader(strings.NewReader(testColumnSort))
+	out := new(bytes.Buffer)
+
+	lines, err := readInput(in)
+	if err != nil {
+		t.Errorf("TestColumnSort for OK Failed - error")
+	}
+
+	opts := Opts{
+		Column: 1,
+	}
+
+	sortedLines, errSort := sortUtil(lines, opts)
+
+	if errSort != nil {
+		t.Errorf("TestColumnSort for OK Failed - error")
+	}
+
+	writeResult(out, sortedLines)
+
+	require.Equal(t, out.String(), testColumnSortCorrectOutput, "TestColumnSort for OK Failed - results not match")
+
+}
+
+func TestNumbers(t *testing.T) {
+	const testSortNumbers = `2
+5
+3
+4
+1
+`
+	const testNumbersCorrectOutput = `1
 2
 3
 4
 5
 `
 
-const testAllFlagsCorrectOutput = `Apple January
-January Hauptbahnhof
-Book Go
-January BOOK
-Napkin Apple
-`
-
-func TestWithoutFlags(t *testing.T) {
-	in := testFile
+	in := bufio.NewReader(strings.NewReader(testSortNumbers))
 	out := new(bytes.Buffer)
-	err := sortUtil(in, out, false, false, false, "", false, 0)
-	if err != nil {
-		t.Errorf("TestWithoutFlags for OK Failed - error")
-	}
-	result := out.String()
-	if result != testWithoutFlagsCorrectOutput {
-		t.Errorf("TestWithoutFlags for OK Failed - results not match\nGot:\n%v\nExpected:\n%v", result, testWithoutFlagsCorrectOutput)
-	}
-}
 
-func TestFlagReverse(t *testing.T) {
-	in := testFile
-	out := new(bytes.Buffer)
-	err := sortUtil(in, out, false, false, true, "", false, 0)
-	if err != nil {
-		t.Errorf("TestFlagReverse for OK Failed - error")
-	}
-	result := out.String()
-	if result != testReverseFlagCorrectOutput {
-		t.Errorf("TestFlagReverse for OK Failed - results not match\nGot:\n%v\nExpected:\n%v", result, testReverseFlagCorrectOutput)
-	}
-}
-
-func TestFlagFirstEntry(t *testing.T) {
-	in := testFile
-	out := new(bytes.Buffer)
-	err := sortUtil(in, out, false, true, false, "", false, 0)
-	if err != nil {
-		t.Errorf("TestFlagFirstEntry for OK Failed - error")
-	}
-	result := out.String()
-	if result != testFirstEntryCorrectOutput {
-		t.Errorf("TestFlagFirstEntry for OK Failed - results not match\nGot:\n%v\nExpected:\n%v", result, testFirstEntryCorrectOutput)
-	}
-}
-
-func TestFlagFirstEntryAndLetterCase(t *testing.T) {
-	in := testFile
-	out := new(bytes.Buffer)
-	err := sortUtil(in, out, true, true, false, "", false, 0)
-	if err != nil {
-		t.Errorf("TestFlagFirstEntryAndLetterCase for OK Failed - error")
-	}
-	result := out.String()
-	if result != testFirstEntryAndLetterCaseCorrectOutput {
-		t.Errorf("TestFlagFirstEntryAndLetterCase for OK Failed - results not match\nGot:\n%v\nExpected:\n%v", result, testFirstEntryAndLetterCaseCorrectOutput)
-	}
-}
-
-func TestColumnSort(t *testing.T) {
-	in := testFileColumn
-	out := new(bytes.Buffer)
-	err := sortUtil(in, out, false, false, false, "", false, 1)
-	if err != nil {
-		t.Errorf("TestColumnSort for OK Failed - error")
-	}
-	result := out.String()
-	if result != testColumnSortCorrectOutput {
-		t.Errorf("TestColumnSort for OK Failed - results not match\nGot:\n%v\nExpected:\n%v", result, testColumnSortCorrectOutput)
-	}
-}
-
-func TestNumbers(t *testing.T) {
-	in := testFileNumber
-	out := new(bytes.Buffer)
-	err := sortUtil(in, out, false, false, false, "", true, 0)
+	lines, err := readInput(in)
 	if err != nil {
 		t.Errorf("TestNumbers for OK Failed - error")
 	}
-	result := out.String()
-	if result != testNumbersCorrectOutput {
-		t.Errorf("TestNumbers for OK Failed - results not match\nGot:\n%v\nExpected:\n%v", result, testNumbersCorrectOutput)
+
+	opts := Opts{
+		SortNumbers: true,
 	}
+
+	sortedLines, errSort := sortUtil(lines, opts)
+
+	if errSort != nil {
+		t.Errorf("TestNumbers for OK Failed - error")
+	}
+
+	writeResult(out, sortedLines)
+
+	require.Equal(t, out.String(), testNumbersCorrectOutput, "TestNumbers for OK Failed - results not match")
+
 }
 
 func TestOutputFile(t *testing.T) {
-	in := testFile
-	out := new(bytes.Buffer)
-	err := sortUtil(in, out, false, false, false, testFileOutput, false, 0)
+	const testSortNumbers = `2
+5
+3
+4
+1
+`
+	const testNumbersCorrectOutput = `1
+2
+3
+4
+5
+`
+
+	in := bufio.NewReader(strings.NewReader(testSortNumbers))
+
+	lines, err := readInput(in)
 	if err != nil {
 		t.Errorf("TestOutputFile for OK Failed - error")
 	}
+
+	opts := Opts{
+		SortNumbers:  true,
+		DirectOutput: "test.txt",
+	}
+
+	sortedLines, errSort := sortUtil(lines, opts)
+
+	if errSort != nil {
+		t.Errorf("TestOutputFile for OK Failed - error")
+	}
+
+	out, err := os.Create("test.txt")
+
+	if err != nil {
+		t.Errorf("TestOutputFile for OK Failed - error")
+	}
+
+	defer out.Close()
+
+	writeResult(out, sortedLines)
+
 	var result string
 
-	file, err := os.Open(testFileOutput)
+	file, err := os.Open("test.txt")
 
 	if err != nil {
 		t.Errorf("TestOutputFile for OK Failed - error")
@@ -179,38 +321,105 @@ func TestOutputFile(t *testing.T) {
 		result += line + delim
 	}
 
-	if result != testWithoutFlagsCorrectOutput {
-		t.Errorf("TestOutputFile for OK Failed - results not match\nGot:\n%v\nExpected:\n%v", result, testWithoutFlagsCorrectOutput)
-	}
+	require.Equal(t, result, testNumbersCorrectOutput, "TestOutputFile for OK Failed - results not match")
 }
 
 func TestAllFlags(t *testing.T) {
-	in := testFileForAllFlags
+	const testAllFlags = `Napkin Apple
+Apple January
+January BOOK
+BOOK January
+January Hauptbahnhof
+Hauptbahnhof Book
+Book Go
+Go Book
+`
+	const testAllFlagsCorrectOutput = `Apple January
+January Hauptbahnhof
+Book Go
+January BOOK
+Napkin Apple
+`
+
+	in := bufio.NewReader(strings.NewReader(testAllFlags))
 	out := new(bytes.Buffer)
-	err := sortUtil(in, out, true, true, true, "", false, 1)
+
+	lines, err := readInput(in)
 	if err != nil {
 		t.Errorf("TestAllFlags for OK Failed - error")
 	}
-	result := out.String()
-	if result != testAllFlagsCorrectOutput {
-		t.Errorf("TestAllFlags for OK Failed - results not match\nGot:\n%v\nExpected:\n%v", result, testAllFlagsCorrectOutput)
+
+	opts := Opts{
+		LetterCase: true,
+		Column:     1,
+		FirstEntry: true,
+		Reverse:    true,
 	}
+
+	sortedLines, errSort := sortUtil(lines, opts)
+
+	if errSort != nil {
+		t.Errorf("TestAllFlags for OK Failed - error")
+	}
+
+	writeResult(out, sortedLines)
+
+	require.Equal(t, out.String(), testAllFlagsCorrectOutput, "TestAllFlags for OK Failed - results not match")
+
 }
 
 func TestIncorrectFile(t *testing.T) {
-	in := testBadFile
-	out := new(bytes.Buffer)
-	err := sortUtil(in, out, false, false, false, "", false, 0)
-	if err == nil {
-		t.Errorf("TestIncorrectFile for OK Failed - error")
+	const testWithoutFlags = `1
+Apple
+3
+2
+5
+6
+8
+10
+`
+
+	in := bufio.NewReader(strings.NewReader(testWithoutFlags))
+	lines, err := readInput(in)
+	if err != nil {
+		t.Errorf("TestWithoutFlags for OK Failed - error")
+	}
+
+	opts := Opts{
+		SortNumbers: true,
+	}
+
+	_, errSort := sortUtil(lines, opts)
+
+	if errSort == nil {
+		t.Errorf("TestWithoutFlags for OK Failed - error")
 	}
 }
 
 func TestNoExistFile(t *testing.T) {
-	in := testNoExistFile
-	out := new(bytes.Buffer)
-	err := sortUtil(in, out, false, false, false, "", false, 0)
-	if err == nil {
-		t.Errorf("TestNoExistFile for OK Failed - error")
+	const testWithoutFlags = `Napkin
+Apple
+January
+BOOK
+January
+Hauptbahnhof
+Book
+Go
+`
+
+	in := bufio.NewReader(strings.NewReader(testWithoutFlags))
+	lines, err := readInput(in)
+	if err != nil {
+		t.Errorf("TestWithoutFlags for OK Failed - error")
+	}
+
+	opts := Opts{
+		Column: 1,
+	}
+
+	_, errSort := sortUtil(lines, opts)
+
+	if errSort == nil {
+		t.Errorf("TestWithoutFlags for OK Failed - error")
 	}
 }

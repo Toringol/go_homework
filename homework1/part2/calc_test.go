@@ -3,49 +3,45 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 )
 
-const (
-	testSimpleExpression              = "1+2"
-	testSimpleExpressionCorrectResult = "3"
-
-	testComplicatedExpression              = "((123+6/2)/2+1*2-(2*3))"
-	testComplicatedExpressionCorrectResult = "59"
-
-	testIncorrectInput = "(1++2)"
-
-	testIncorrectBrackets = "(1+2))"
-)
-
 func TestSimpleExpression(t *testing.T) {
+	const testSimpleExpression = "1+2"
+	const testSimpleExpressionCorrectResult = "3"
+
 	in := bufio.NewReader(strings.NewReader(testSimpleExpression))
 	out := new(bytes.Buffer)
+
 	err := calc(in, out)
+
 	if err != nil {
 		t.Errorf("testSimpleExpression for OK Failed - error")
 	}
-	result := out.String()
-	if result != testSimpleExpressionCorrectResult {
-		t.Errorf("testSimpleExpression for OK Failed - results not match\nGot:\n%v\nExpected:\n%v", result, testSimpleExpressionCorrectResult)
-	}
+
+	require.Equal(t, out.String(), testSimpleExpressionCorrectResult, "TestSimpleExpression for OK Failed - results not match")
 }
 
 func TestComplicatedExpresssion(t *testing.T) {
+	const testComplicatedExpression = "((123+6/2)/2+1*2-(2*3))"
+	const testComplicatedExpressionCorrectResult = "59"
+
 	in := bufio.NewReader(strings.NewReader(testComplicatedExpression))
 	out := new(bytes.Buffer)
+
 	err := calc(in, out)
+
 	if err != nil {
 		t.Errorf("testComplicatedExpression for OK Failed - error")
 	}
-	result := out.String()
-	if result != testComplicatedExpressionCorrectResult {
-		t.Errorf("testComplicatedExpression for OK Failed - results not match\nGot:\n%v\nExpected:\n%v", result, testComplicatedExpressionCorrectResult)
-	}
+
+	require.Equal(t, out.String(), testComplicatedExpressionCorrectResult, "TestComplicatedExpresssion for OK Failed - results not match")
 }
 
 func TestIncorrectInput(t *testing.T) {
+	const testIncorrectInput = "(1++2)"
 	in := bufio.NewReader(strings.NewReader(testIncorrectInput))
 	out := new(bytes.Buffer)
 	err := calc(in, out)
@@ -55,6 +51,7 @@ func TestIncorrectInput(t *testing.T) {
 }
 
 func TestIncorrectBrackets(t *testing.T) {
+	const testIncorrectBrackets = "(1+2))"
 	in := bufio.NewReader(strings.NewReader(testIncorrectBrackets))
 	out := new(bytes.Buffer)
 	err := calc(in, out)
