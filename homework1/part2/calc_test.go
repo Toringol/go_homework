@@ -17,9 +17,7 @@ func TestSimpleExpression(t *testing.T) {
 
 	err := calc(in, out)
 
-	if err != nil {
-		t.Errorf("testSimpleExpression for OK Failed - error")
-	}
+	require.Equal(t, err, nil, "TestSimpleExpression for OK Failed - error")
 
 	require.Equal(t, out.String(), testSimpleExpressionCorrectResult, "TestSimpleExpression for OK Failed - results not match")
 }
@@ -33,9 +31,7 @@ func TestComplicatedExpresssion(t *testing.T) {
 
 	err := calc(in, out)
 
-	if err != nil {
-		t.Errorf("testComplicatedExpression for OK Failed - error")
-	}
+	require.Equal(t, err, nil, "TestComplicatedExpression for OK Failed - error")
 
 	require.Equal(t, out.String(), testComplicatedExpressionCorrectResult, "TestComplicatedExpresssion for OK Failed - results not match")
 }
@@ -45,9 +41,8 @@ func TestIncorrectInput(t *testing.T) {
 	in := bufio.NewReader(strings.NewReader(testIncorrectInput))
 	out := new(bytes.Buffer)
 	err := calc(in, out)
-	if err == nil {
-		t.Errorf("testIncorrectInput for OK Failed - error")
-	}
+
+	require.NotEqual(t, err, nil, "TestIncorrectInput for OK Failed - error")
 }
 
 func TestIncorrectBrackets(t *testing.T) {
@@ -55,7 +50,5 @@ func TestIncorrectBrackets(t *testing.T) {
 	in := bufio.NewReader(strings.NewReader(testIncorrectBrackets))
 	out := new(bytes.Buffer)
 	err := calc(in, out)
-	if err == nil {
-		t.Errorf("testIncorrectBrackets for OK Failed - error")
-	}
+	require.NotEqual(t, err, nil, "TestIncorrectBrackets for OK Failed - error")
 }

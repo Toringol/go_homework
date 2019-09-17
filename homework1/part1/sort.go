@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -40,18 +41,15 @@ func readInput(input io.Reader) (lines []string, err error) {
 	}
 
 	if err := in.Err(); err != nil {
-		emptyLine := []string{}
-		return emptyLine, err
+		return lines, err
 	}
 
 	return lines, nil
 }
 
 func writeResult(output io.Writer, res []string) {
-	const delim = "\n"
 	for _, line := range res {
-		output.Write([]byte(line))
-		output.Write([]byte(delim))
+		fmt.Fprintln(output, line)
 	}
 }
 
@@ -220,7 +218,6 @@ func main() {
 
 	if len(flag.Args()) == 1 {
 		in, err := os.Open(flag.Args()[0])
-
 		if err != nil {
 			log.Fatal("Can`t open file")
 		}
@@ -228,7 +225,6 @@ func main() {
 		defer in.Close()
 
 		lines, err = readInput(in)
-
 		if err != nil {
 			log.Fatal("Mistake in read")
 		}
@@ -236,7 +232,6 @@ func main() {
 	} else {
 		var err error
 		lines, err = readInput(os.Stdin)
-
 		if err != nil {
 			log.Fatal("Mistake in read")
 		}
@@ -248,7 +243,6 @@ func main() {
 		writeResult(out, sortedLines)
 	} else {
 		file, err := os.Create(opts.DirectOutput)
-
 		if err != nil {
 			log.Fatal("Can`t create or open file")
 		}
