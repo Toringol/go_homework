@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,13 +21,14 @@ func ExecutePipeline(freeFlowJobs ...job) {
 		out = make(chan interface{})
 		wg.Add(1)
 
-		go func(jobFunc job, input, output chan interface{}) {
-			defer wg.Done()
-			jobFunc(input, output)
-			close(output)
-			runtime.Gosched()
-		}(freeJob, in, out)
+		go runJob(freeJob, in, out, wg)
 	}
+}
+
+func runJob(jobFunc job, input, output chan interface{}, wg *sync.WaitGroup) {
+	defer wg.Done()
+	jobFunc(input, output)
+	close(output)
 }
 
 func SingleHash(in, out chan interface{}) {
@@ -36,50 +36,68 @@ func SingleHash(in, out chan interface{}) {
 	wgOutput := &sync.WaitGroup{}
 	defer wgOutput.Wait()
 
-LOOP:
-	for {
-		// Выявлено опытным путем
+	for dataInterface := range in {
 		time.Sleep(time.Millisecond * 11)
-		select {
-		case dataInterface := <-in:
 
+		var strData string
+
+		switch dataInterface.(type) {
+		case int:
 			data, ok := dataInterface.(int)
 			if !ok {
 				fmt.Println("SingleHash convert error!")
-				break LOOP
+				break
 			}
-
-			var strData = strconv.Itoa(data)
-			var crt32Data string
-			var crt32Md5Data string
-
-			wgOutput.Add(1)
-
-			go func(targetData string, wgOut *sync.WaitGroup) {
-				defer wgOut.Done()
-				wgInput := &sync.WaitGroup{}
-				wgInput.Add(2)
-
-				go func(data string, wgIn *sync.WaitGroup) {
-					defer wgIn.Done()
-					crt32Data = DataSignerCrc32(data)
-					runtime.Gosched()
-				}(targetData, wgInput)
-
-				go func(data string, wgIn *sync.WaitGroup) {
-					defer wgIn.Done()
-					crt32Md5Data = DataSignerCrc32(DataSignerMd5(data))
-					runtime.Gosched()
-				}(targetData, wgInput)
-
-				wgInput.Wait()
-
-				fmt.Println(targetData + " SingleHash result: " + crt32Data + "~" + crt32Md5Data)
-				out <- crt32Data + "~" + crt32Md5Data
-
-			}(strData, wgOutput)
+			strData = strconv.Itoa(data)
+		case string:
+			data, err := strconv.Atoi(dataInterface.(string))
+			if err != nil {
+				fmt.Println("SingleHash convert error!")
+				break
+			}
+			strData = strconv.Itoa(data)
 		}
+
+		wgOutput.Add(1)
+
+		go processCalculatingSingleHash(strData, wgOutput, out)
+
 	}
+}
+
+func processCalculatingSingleHash(targetData string, wgOut *sync.WaitGroup, out chan interface{}) {
+	var crt32Data string
+	var crt32Md5Data string
+
+	defer wgOut.Done()
+	wgInput := &sync.WaitGroup{}
+	wgInput.Add(1)
+
+	go calculateCrt32Data(targetData, wgInput, &crt32Data)
+
+	wgInput.Add(1)
+
+	go calculateCrt32Md5Data(targetData, wgInput, &crt32Md5Data)
+
+	wgInput.Wait()
+
+	out <- crt32Data + "~" + crt32Md5Data
+}
+
+func calculateCrt32Data(data string, wgIn *sync.WaitGroup, crt32Data *string) {
+	defer wgIn.Done()
+	mu := &sync.Mutex{}
+	mu.Lock()
+	*crt32Data = DataSignerCrc32(data)
+	mu.Unlock()
+}
+
+func calculateCrt32Md5Data(data string, wgIn *sync.WaitGroup, crt32Md5Data *string) {
+	defer wgIn.Done()
+	mu := &sync.Mutex{}
+	mu.Lock()
+	*crt32Md5Data = DataSignerCrc32(DataSignerMd5(data))
+	mu.Unlock()
 }
 
 func MultiHash(in, out chan interface{}) {
@@ -87,64 +105,63 @@ func MultiHash(in, out chan interface{}) {
 	wgOutput := &sync.WaitGroup{}
 	defer wgOutput.Wait()
 
-LOOP:
-	for {
-		select {
-		case dataInterface := <-in:
-			data, ok := dataInterface.(string)
-			if !ok {
-				fmt.Println("Multihash convert error!")
-				break LOOP
-			}
-
-			var strData = data
-			var result string
-			var futuresArr [6]string
-
-			wgOutput.Add(1)
-
-			go func(targetData string, wgOut *sync.WaitGroup) {
-				defer wgOut.Done()
-				wgInput := &sync.WaitGroup{}
-
-				for th := 0; th < 6; th++ {
-					wgInput.Add(1)
-
-					go func(index int, data string, wgIn *sync.WaitGroup) {
-						defer wgIn.Done()
-						futuresArr[index] = DataSignerCrc32(strconv.Itoa(index) + data)
-						fmt.Println(data + " " + "MultiHash: " + strconv.Itoa(index) + futuresArr[index])
-						runtime.Gosched()
-					}(th, targetData, wgInput)
-				}
-
-				wgInput.Wait()
-
-				for _, item := range futuresArr {
-					result += item
-				}
-
-				out <- result
-			}(strData, wgOutput)
+	for dataInterface := range in {
+		data, ok := dataInterface.(string)
+		if !ok {
+			fmt.Println("Multihash convert error!")
+			break
 		}
+
+		wgOutput.Add(1)
+
+		go processCalculatingMultiHash(data, wgOutput, out)
 	}
+}
+
+func processCalculatingMultiHash(targetData string, wgOut *sync.WaitGroup, out chan interface{}) {
+	var result string
+	var futuresArr [6]string
+
+	defer wgOut.Done()
+	wgInput := &sync.WaitGroup{}
+
+	for th := 0; th < 6; th++ {
+		wgInput.Add(1)
+
+		go func(index int, data string, wgIn *sync.WaitGroup) {
+			defer wgIn.Done()
+			futuresArr[index] = DataSignerCrc32(strconv.Itoa(index) + data)
+			fmt.Println(data + " " + "MultiHash: " + strconv.Itoa(index) + futuresArr[index])
+		}(th, targetData, wgInput)
+
+	}
+
+	wgInput.Wait()
+
+	for _, item := range futuresArr {
+		result += item
+	}
+
+	out <- result
+}
+
+func calculateMultihashByIndex(index int, data string, wgIn *sync.WaitGroup, futuresArr [6]string) {
+	defer wgIn.Done()
+	futuresArr[index] = DataSignerCrc32(strconv.Itoa(index) + data)
+	fmt.Println(data + " " + "MultiHash: " + strconv.Itoa(index) + futuresArr[index])
 }
 
 func CombineResults(in, out chan interface{}) {
 
 	var result []string
 
-LOOP:
-	for {
-		select {
-		case dataInterface := <-in:
-			data, ok := dataInterface.(string)
-			if !ok {
-				fmt.Println("CombineResults convert error!")
-				break LOOP
-			}
-			result = append(result, data)
+	for dataInterface := range in {
+		data, ok := dataInterface.(string)
+		if !ok {
+			fmt.Println("CombineResults convert error!")
+			break
 		}
+		result = append(result, data)
 	}
 	sort.Strings(result)
 
