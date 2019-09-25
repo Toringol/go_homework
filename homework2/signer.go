@@ -39,24 +39,26 @@ func SingleHash(in, out chan interface{}) {
 	for dataInterface := range in {
 		time.Sleep(time.Millisecond * 11)
 
-		var strData string
+		var (
+			strData string
+			data    int
+			ok      bool
+			err     error
+		)
 
 		switch dataInterface.(type) {
 		case int:
-			data, ok := dataInterface.(int)
-			if !ok {
-				fmt.Println("SingleHash convert error!")
-				break
-			}
-			strData = strconv.Itoa(data)
+			data, ok = dataInterface.(int)
 		case string:
-			data, err := strconv.Atoi(dataInterface.(string))
-			if err != nil {
-				fmt.Println("SingleHash convert error!")
-				break
-			}
-			strData = strconv.Itoa(data)
+			data, err = strconv.Atoi(dataInterface.(string))
 		}
+
+		if !ok || err != nil {
+			fmt.Println("SingleHash convert error!")
+			break
+		}
+
+		strData = strconv.Itoa(data)
 
 		wgOutput.Add(1)
 
@@ -119,21 +121,17 @@ func MultiHash(in, out chan interface{}) {
 }
 
 func processCalculatingMultiHash(targetData string, wgOut *sync.WaitGroup, out chan interface{}) {
-	var result string
-	var futuresArr [6]string
 
 	defer wgOut.Done()
 	wgInput := &sync.WaitGroup{}
 
+	var result string
+	var futuresArr [6]string
+
 	for th := 0; th < 6; th++ {
 		wgInput.Add(1)
 
-		go func(index int, data string, wgIn *sync.WaitGroup) {
-			defer wgIn.Done()
-			futuresArr[index] = DataSignerCrc32(strconv.Itoa(index) + data)
-			fmt.Println(data + " " + "MultiHash: " + strconv.Itoa(index) + futuresArr[index])
-		}(th, targetData, wgInput)
-
+		go calculateMultihashByIndex(th, targetData, wgInput, &futuresArr)
 	}
 
 	wgInput.Wait()
@@ -145,9 +143,9 @@ func processCalculatingMultiHash(targetData string, wgOut *sync.WaitGroup, out c
 	out <- result
 }
 
-func calculateMultihashByIndex(index int, data string, wgIn *sync.WaitGroup, futuresArr [6]string) {
+func calculateMultihashByIndex(index int, data string, wgIn *sync.WaitGroup, futuresArr *[6]string) {
 	defer wgIn.Done()
-	futuresArr[index] = DataSignerCrc32(strconv.Itoa(index) + data)
+	(*futuresArr)[index] = DataSignerCrc32(strconv.Itoa(index) + data)
 	fmt.Println(data + " " + "MultiHash: " + strconv.Itoa(index) + futuresArr[index])
 }
 
