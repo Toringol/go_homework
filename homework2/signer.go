@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 func ExecutePipeline(freeFlowJobs ...job) {
@@ -32,13 +31,12 @@ func runJob(jobFunc job, input, output chan interface{}, wg *sync.WaitGroup) {
 }
 
 func SingleHash(in, out chan interface{}) {
-
+	mu := &sync.Mutex{}
 	wgOutput := &sync.WaitGroup{}
 	defer wgOutput.Wait()
 
 	for dataInterface := range in {
-		time.Sleep(time.Millisecond * 11)
-
+		wgOutput.Add(1)
 		var (
 			strData string
 			data    int
@@ -60,45 +58,40 @@ func SingleHash(in, out chan interface{}) {
 
 		strData = strconv.Itoa(data)
 
-		wgOutput.Add(1)
-
-		go processCalculatingSingleHash(strData, wgOutput, out)
-
+		go processCalculatingSingleHash(out, wgOutput, mu, strData)
 	}
 }
 
-func processCalculatingSingleHash(targetData string, wgOut *sync.WaitGroup, out chan interface{}) {
-	var crt32Data string
-	var crt32Md5Data string
+func processCalculatingSingleHash(out chan interface{}, wgOutput *sync.WaitGroup, mu *sync.Mutex, data string) {
+	defer wgOutput.Done()
 
-	defer wgOut.Done()
+	mu.Lock()
+	md5hash := DataSignerMd5(data)
+	mu.Unlock()
+
+	savedData := map[string]string{
+		"data":    data,
+		"md5hash": md5hash,
+	}
+
+	resultData := make(map[string]string, 2)
+
 	wgInput := &sync.WaitGroup{}
-	wgInput.Add(1)
-
-	go calculateCrt32Data(targetData, wgInput, &crt32Data)
-
-	wgInput.Add(1)
-
-	go calculateCrt32Md5Data(targetData, wgInput, &crt32Md5Data)
-
+	for key := range savedData {
+		wgInput.Add(1)
+		go calculatingSingleHash(key, savedData, resultData, wgInput, mu)
+	}
 	wgInput.Wait()
 
-	out <- crt32Data + "~" + crt32Md5Data
+	result := resultData["data"] + "~" + resultData["md5hash"]
+	out <- result
 }
 
-func calculateCrt32Data(data string, wgIn *sync.WaitGroup, crt32Data *string) {
-	defer wgIn.Done()
-	mu := &sync.Mutex{}
+func calculatingSingleHash(key string, savedData map[string]string, resultData map[string]string, wgInput *sync.WaitGroup, mu *sync.Mutex) {
+	defer wgInput.Done()
+	hash := DataSignerCrc32(savedData[key])
 	mu.Lock()
-	*crt32Data = DataSignerCrc32(data)
-	mu.Unlock()
-}
-
-func calculateCrt32Md5Data(data string, wgIn *sync.WaitGroup, crt32Md5Data *string) {
-	defer wgIn.Done()
-	mu := &sync.Mutex{}
-	mu.Lock()
-	*crt32Md5Data = DataSignerCrc32(DataSignerMd5(data))
+	resultData[key] = hash
 	mu.Unlock()
 }
 
@@ -145,7 +138,10 @@ func processCalculatingMultiHash(targetData string, wgOut *sync.WaitGroup, out c
 
 func calculateMultihashByIndex(index int, data string, wgIn *sync.WaitGroup, futuresArr *[6]string) {
 	defer wgIn.Done()
+	mu := &sync.Mutex{}
+	mu.Lock()
 	(*futuresArr)[index] = DataSignerCrc32(strconv.Itoa(index) + data)
+	mu.Unlock()
 	fmt.Println(data + " " + "MultiHash: " + strconv.Itoa(index) + futuresArr[index])
 }
 
