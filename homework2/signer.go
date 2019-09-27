@@ -36,7 +36,6 @@ func SingleHash(in, out chan interface{}) {
 	defer wgOutput.Wait()
 
 	for dataInterface := range in {
-		wgOutput.Add(1)
 		var (
 			strData string
 			data    int
@@ -58,6 +57,7 @@ func SingleHash(in, out chan interface{}) {
 
 		strData = strconv.Itoa(data)
 
+		wgOutput.Add(1)
 		go processCalculatingSingleHash(out, wgOutput, mu, strData)
 	}
 }
