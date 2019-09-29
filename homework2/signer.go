@@ -18,8 +18,8 @@ func ExecutePipeline(freeFlowJobs ...job) {
 	for _, freeJob := range freeFlowJobs {
 		in = out
 		out = make(chan interface{})
-		wg.Add(1)
 
+		wg.Add(1)
 		go runJob(freeJob, in, out, wg)
 	}
 }
@@ -66,13 +66,14 @@ func processCalculatingSingleHash(out chan interface{}, wgOutput *sync.WaitGroup
 	defer wgOutput.Done()
 
 	mu.Lock()
-	md5hash := DataSignerMd5(data)
-	mu.Unlock()
 
+	md5hash := DataSignerMd5(data)
 	savedData := map[string]string{
 		"data":    data,
 		"md5hash": md5hash,
 	}
+
+	mu.Unlock()
 
 	resultData := make(map[string]string, 2)
 
@@ -83,13 +84,24 @@ func processCalculatingSingleHash(out chan interface{}, wgOutput *sync.WaitGroup
 	}
 	wgInput.Wait()
 
-	result := resultData["data"] + "~" + resultData["md5hash"]
+	mu.Lock()
+	resultString := resultData["data"] + "~" + resultData["md5hash"]
+	mu.Unlock()
+
+	result := resultString
+
 	out <- result
 }
 
 func calculatingSingleHash(key string, savedData map[string]string, resultData map[string]string, wgInput *sync.WaitGroup, mu *sync.Mutex) {
 	defer wgInput.Done()
-	hash := DataSignerCrc32(savedData[key])
+
+	mu.Lock()
+	tempData := savedData[key]
+	mu.Unlock()
+
+	hash := DataSignerCrc32(tempData)
+
 	mu.Lock()
 	resultData[key] = hash
 	mu.Unlock()
@@ -108,7 +120,6 @@ func MultiHash(in, out chan interface{}) {
 		}
 
 		wgOutput.Add(1)
-
 		go processCalculatingMultiHash(data, wgOutput, out)
 	}
 }
