@@ -8,6 +8,20 @@ import (
 	"sync"
 )
 
+type MD5Hasher struct {
+	mu   *sync.Mutex
+	hash string
+}
+
+func (m *MD5Hasher) Hash(data string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.hash = DataSignerMd5(data)
+
+	return m.hash
+}
+
 func ExecutePipeline(freeFlowJobs ...job) {
 	wg := &sync.WaitGroup{}
 	defer wg.Wait()
@@ -31,9 +45,13 @@ func runJob(jobFunc job, input, output chan interface{}, wg *sync.WaitGroup) {
 }
 
 func SingleHash(in, out chan interface{}) {
-	mu := &sync.Mutex{}
 	wgOutput := &sync.WaitGroup{}
 	defer wgOutput.Wait()
+
+	var md5Hasher = MD5Hasher{
+		mu:   &sync.Mutex{},
+		hash: "",
+	}
 
 	for dataInterface := range in {
 		var (
@@ -58,35 +76,34 @@ func SingleHash(in, out chan interface{}) {
 		strData = strconv.Itoa(data)
 
 		wgOutput.Add(1)
-		go processCalculatingSingleHash(out, wgOutput, mu, strData)
+		go processCalculatingSingleHash(out, wgOutput, strData, md5Hasher)
 	}
 }
 
-func processCalculatingSingleHash(out chan interface{}, wgOutput *sync.WaitGroup, mu *sync.Mutex, data string) {
+func processCalculatingSingleHash(out chan interface{}, wgOutput *sync.WaitGroup, data string, md5hasher MD5Hasher) {
 	defer wgOutput.Done()
 
-	mu.Lock()
+	hash := md5hasher.Hash(data)
 
-	md5hash := DataSignerMd5(data)
+	md5hasher.mu.Lock()
 	savedData := map[string]string{
 		"data":    data,
-		"md5hash": md5hash,
+		"md5hash": hash,
 	}
-
-	mu.Unlock()
+	md5hasher.mu.Unlock()
 
 	resultData := make(map[string]string, 2)
 
 	wgInput := &sync.WaitGroup{}
 	for key := range savedData {
 		wgInput.Add(1)
-		go calculatingSingleHash(key, savedData, resultData, wgInput, mu)
+		go calculatingSingleHash(key, savedData, resultData, wgInput, md5hasher.mu)
 	}
 	wgInput.Wait()
 
-	mu.Lock()
+	md5hasher.mu.Lock()
 	resultString := resultData["data"] + "~" + resultData["md5hash"]
-	mu.Unlock()
+	md5hasher.mu.Unlock()
 
 	result := resultString
 
